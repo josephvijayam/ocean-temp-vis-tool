@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 from pathlib import Path
 import logging
 
@@ -147,32 +149,42 @@ class OceanTempReader:
             self.logger.error(f"Error calculating statistics: {str(e)}")
             raise
 
-    def visualize_sst(self, df):
+    def visualize_sst(self, df, save_path='sst_map.png'):
         """
-        Create a heatmap of sea surface temperatures.
+        Create a heatmap of sea surface temperatures with map overlay
         """
         # Pivot the data to create a 2D matrix of temperatures
-        temp_matrix = df.pivot(index='lat', columns='lon', values='sst')
-        
+        pivot_df = df.pivot(index='lat', columns='lon', values='sst')
+        lons, lats = np.meshgrid(pivot_df.columns, pivot_df.index)
+
         # Create the plot
         plt.figure(figsize=(15, 8))
+        ax = plt.axes(projection=ccrs.PlateCarree())
+
+        ax.add_feature(cfeature.COASTLINE)
+        ax.add_feature(cfeature.BORDERS, linestyle=':')
+        ax.add_feature(cfeature.LAND, facecolor='lightgray')
+        ax.gridlines(draw_labels=True)
+
+        # plot temp data
+        temp_mesh = ax.pcolormesh(lons, lats, pivot_df,
+                                  transform=ccrs.PlateCarree(), # flat square map projection
+                                  cmap='RdYlBu_r', # red-yellow-blue colormap (reversed)
+                                  shading='auto')
         
-        # Create heatmap
-        sns.heatmap(temp_matrix, 
-                    cmap='RdYlBu_r',  # Red-Yellow-Blue colormap (reversed)
-                    center=0,         # Center the colormap at 0°C
-                    cbar_kws={'label': 'Temperature (°C)'})
-        
+        # add colorbar
+        plt.colorbar(temp_mesh,
+                     label='Sea Surface Temperature (°C)',
+                     orientation='horizontal',
+                     pad=0.05)
+
         plt.title('Global Sea Surface Temperature')
-        plt.xlabel('Longitude')
-        plt.ylabel('Latitude')
-        
-        # Save the plot
-        plt.savefig('sst_heatmap.png')
+        plt.savefig(save_path, bbox_inches='tight', dpi=300)
         plt.close()
 
-        return 'sst_heatmap.png'
-        
+        self.logger.info(f"Visualization saved as {save_path}")
+        return save_path
+
 if __name__ == "__main__":
 
     reader = OceanTempReader()
@@ -199,7 +211,6 @@ if __name__ == "__main__":
         
         # Create visualization
         output_file = reader.visualize_sst(temp_df)
-        print(f"Visualization saved as: {output_file}")
-
+        
     except Exception as e:
         print(f"Error processing data: {str(e)}")
