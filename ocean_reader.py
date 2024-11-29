@@ -71,27 +71,8 @@ class OceanReader:
         # Code for extract_temperature_data remains the same as before
         return self._extract_data(dataset, temp_var, time_slice)
 
-    def extract_current_data(self, dataset: xr.Dataset,
-                            u_var: str = 'uo',
-                            v_var: str = 'vo',
-                            time_slice: str = None) -> pd.DataFrame:
-        """
-        Extract current data (u and v components) from dataset into a pandas DataFrame.
-        
-        Args:
-            dataset (xr.Dataset): Input dataset
-            u_var (str): Name of eastward current variable in dataset
-            v_var (str): Name of northward current variable in dataset
-            time_slice (str): Optional time slice to extract (e.g., '2020-01')
-            
-        Returns:
-            pd.DataFrame: DataFrame with current data
-        """
-        return self._extract_data(dataset, u_var, time_slice, v_var=v_var)
-
     def _extract_data(self, dataset: xr.Dataset, 
-                    var1: str, time_slice: str = None, 
-                    var2: str = None) -> pd.DataFrame:
+                    var1: str, time_slice: str = None) -> pd.DataFrame:
         """
         Helper function to extract data from a dataset.
         
@@ -99,13 +80,12 @@ class OceanReader:
             dataset (xr.Dataset): Input dataset
             var1 (str): Name of the first variable to extract
             time_slice (str): Optional time slice to extract (e.g., '2020-01')
-            var2 (str): Name of the second variable to extract (optional)
             
         Returns:
             pd.DataFrame: DataFrame with the extracted data
         """
         try:
-            self.logger.info(f"Extracting data from variable(s): {var1}, {var2 if var2 else ''}")
+            self.logger.info(f"Extracting data from variable: {var1}")
             
             # Get the data
             if var1 not in dataset:
@@ -116,27 +96,17 @@ class OceanReader:
             # Extract a single time slice if specified
             if time_slice:
                 data1 = dataset[var1].sel(time=time_slice)
-                if var2:
-                    data2 = dataset[var2].sel(time=time_slice)
             else:
                 # Take the first time slice if multiple times exist
                 if 'time' in dataset[var1].dims:
                     data1 = dataset[var1].isel(time=0)
-                    if var2:
-                        data2 = dataset[var2].isel(time=0)
                 else:
                     data1 = dataset[var1]
-                    if var2:
-                        data2 = dataset[var2]
             
             self.logger.info(f"Data1 shape: {data1.shape}")
-            if var2:
-                self.logger.info(f"Data2 shape: {data2.shape}")
             
             # Convert to DataFrame
             df = data1.to_dataframe()
-            if var2:
-                df[var2] = data2.values
             
             # Reset index to make coordinate variables into columns
             df = df.reset_index()
@@ -144,8 +114,6 @@ class OceanReader:
             # Basic data validation
             if df[var1].isnull().all():
                 raise ValueError(f"Data for variable '{var1}' contains all null values")
-            if var2 and df[var2].isnull().all():
-                raise ValueError(f"Data for variable '{var2}' contains all null values")
             
             self.logger.info(f"Successfully extracted {len(df)} data points")
             self.logger.info(f"DataFrame columns: {df.columns.tolist()}")
@@ -244,7 +212,6 @@ if __name__ == "__main__":
 
     # Extract temperature and current data
     temp_df = reader.extract_temperature_data(temp_dataset, temp_var='sst')
-    # current_df = reader.extract_current_data(current_dataset, u_var='uo', v_var='vo')
 
     # Visualize both temperature and current data
     reader.visualize_data(temp_df, save_path='ocean_data_visualization.png')
